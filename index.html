@@ -77,18 +77,23 @@
   #counter { background: var(--bar); border-radius: 19px; height: 38px; display: inline-flex; align-items: center; padding: 0 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
   #counter input { width: 3.2em; background: transparent; border: 0; border-bottom: 1px solid var(--muted); color: #fff; font: inherit; text-align: center; padding: 0; }
 
-  #thumbs {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-    background: rgba(15,6,10,.94); backdrop-filter: blur(8px);
-    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
-    display: flex; gap: 10px; overflow-x: auto;
-    transform: translateY(105%); transition: transform .3s ease;
-  }
-  #thumbs.open { transform: none; }
-  #thumbs button { flex: 0 0 auto; border: 2px solid transparent; padding: 0; background: none; cursor: pointer; border-radius: 4px; overflow: hidden; position: relative; }
-  #thumbs button.cur { border-color: var(--accent); }
-  #thumbs img { display: block; height: 120px; width: auto; }
-  #thumbs span { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.55); font-size: 11px; text-align: center; padding: 2px; }
+  /* Page overview: zooms out from the current page to a grid, and back into the page you pick. */
+  #overview { position: fixed; inset: 0; z-index: 25; display: flex; flex-direction: column; background: rgba(24,9,16,0); transition: background .4s ease; }
+  #overview.show { background: rgba(24,9,16,.97); }
+  .ov-head { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 6px; opacity: 0; transition: opacity .3s; }
+  #overview.show .ov-head { opacity: 1; }
+  .ov-head b { font-weight: 500; font-size: 15px; }
+  #ovScroll { flex: 1; overflow: auto; padding: 10px 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
+  #ovGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 22px 16px; max-width: 1180px; margin: 0 auto; transform-origin: 0 0; }
+  #ovGrid.anim { transition: transform .45s cubic-bezier(.22,.7,.2,1); }
+  #ovGrid button { border: 0; padding: 0; background: none; cursor: pointer; color: var(--muted); font: inherit; font-size: 12px; transition: opacity .3s; }
+  #ovGrid.focus button:not(.pick) { opacity: 0; }
+  #ovGrid img { display: block; width: 100%; aspect-ratio: 612 / 792; object-fit: cover; border-radius: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.45); outline: 3px solid transparent; outline-offset: 2px; transition: outline-color .2s, transform .2s; }
+  #ovGrid button:hover img { transform: translateY(-3px); }
+  #ovGrid button.cur img { outline-color: var(--accent); }
+  #ovGrid button.cur { color: #fff; }
+  #ovGrid span { display: block; margin-top: 6px; text-align: center; }
+  @media (max-width: 640px) { #ovGrid { grid-template-columns: repeat(3, 1fr); gap: 16px 10px; } }
 
   #zoom {
     position: fixed; inset: 0; z-index: 30; background: rgba(10,4,8,.96);
@@ -135,7 +140,10 @@
   <button class="tb" id="shareBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span class="lbl">แชร์</span></button>
 </footer>
 
-<nav id="thumbs" aria-label="ภาพย่อทุกหน้า"></nav>
+<div id="overview" hidden role="dialog" aria-label="ทุกหน้า">
+  <div class="ov-head"><b>ทุกหน้า · เลือกหน้าที่ต้องการ</b><button class="tb" id="ovClose" aria-label="ปิด">✕</button></div>
+  <div id="ovScroll"><div id="ovGrid"></div></div>
+</div>
 <div id="zoom"><button class="tb close" aria-label="ปิด">✕</button><img alt=""></div>
 
 <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
@@ -248,7 +256,6 @@
     if (document.activeElement !== pageInput) pageInput.value = label;
     $('prev').disabled = $('stepPrev').disabled = $('first').disabled = idx === 0;
     $('next').disabled = $('stepNext').disabled = $('last').disabled = lastVisible >= N - 1;
-    $('thumbs').querySelectorAll('button').forEach((b, i) => b.classList.toggle('cur', i === idx));
     history.replaceState(null, '', '#page=' + (idx + 1));
   }
 
@@ -304,22 +311,62 @@
   pageInput.addEventListener('keydown', e => { if (e.key === 'Enter') { go(parseInt(pageInput.value, 10)); pageInput.blur(); } });
   pageInput.addEventListener('blur', sync);
 
-  // Thumbnails drawer
-  const thumbs = $('thumbs');
+  // Page overview. Opening zooms out from the page on screen to the grid; picking a page zooms
+  // the grid back in so the chosen thumbnail lands exactly where that page sits in the book.
+  const ov = $('overview'), grid = $('ovGrid');
   for (let i = 1; i <= N; i++) {
     const b = document.createElement('button');
-    b.innerHTML = '<img loading="lazy" src="thumbs/' + pad(i) + '.jpg" alt=""><span>' + i + '</span>';
-    b.onclick = () => { go(i); toggleThumbs(false); };
-    thumbs.appendChild(b);
+    b.innerHTML = '<img src="thumbs/' + pad(i) + '.jpg" alt="หน้า ' + i + '"><span>' + i + '</span>';
+    b.onclick = () => closeOverview(i - 1);
+    grid.appendChild(b);
   }
-  function toggleThumbs(open) {
-    open = open ?? !thumbs.classList.contains('open');
-    thumbs.classList.toggle('open', open);
-    $('thumbBtn').setAttribute('aria-pressed', open);
-    if (open) thumbs.querySelector('.cur')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  let ovOpen = false, ovTimer;
+  const zoomable = () => angle === 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function pageRect(idx) {
+    const r = rot.getBoundingClientRect();
+    if (pageFlip.getOrientation() !== 'landscape') return r;
+    const right = idx % 2 === 0;   // lone cover and even indices sit on the right of the spread
+    return { left: r.left + (right ? r.width / 2 : 0), top: r.top, width: r.width / 2 };
   }
-  $('thumbBtn').onclick = e => { e.stopPropagation(); toggleThumbs(); };
-  document.addEventListener('click', e => { if (!thumbs.contains(e.target)) toggleThumbs(false); });
+  // Transform (origin: grid's top-left) that maps thumbnail idx onto the page's on-screen rect.
+  function zoomTo(idx) {
+    const t = pageRect(idx), g = grid.getBoundingClientRect();
+    const b = grid.children[idx].querySelector('img').getBoundingClientRect();
+    const s = t.width / b.width;
+    return 'translate(' + (t.left - g.left - s * (b.left - g.left)) + 'px,' + (t.top - g.top - s * (b.top - g.top)) + 'px) scale(' + s + ')';
+  }
+  function openOverview() {
+    if (ovOpen) return;
+    ovOpen = true; clearTimeout(ovTimer);
+    const idx = pageFlip.getCurrentPageIndex();
+    [...grid.children].forEach((b, i) => { b.classList.toggle('cur', i === idx); b.classList.toggle('pick', i === idx); });
+    grid.classList.remove('anim');
+    grid.style.transform = 'none';
+    ov.hidden = false;
+    grid.children[idx].scrollIntoView({ block: 'center' });
+    if (zoomable()) { grid.classList.add('focus'); grid.style.transform = zoomTo(idx); }
+    grid.offsetWidth;   // commit the zoomed-in start state before animating out
+    requestAnimationFrame(() => {
+      grid.classList.add('anim');
+      grid.classList.remove('focus');
+      grid.style.transform = 'none';
+      ov.classList.add('show');
+    });
+    $('thumbBtn').setAttribute('aria-pressed', 'true');
+  }
+  function closeOverview(idx) {
+    if (!ovOpen) return;
+    ovOpen = false;
+    if (idx != null && idx !== pageFlip.getCurrentPageIndex()) { pageFlip.turnToPage(idx); sync(); }
+    idx = pageFlip.getCurrentPageIndex();
+    [...grid.children].forEach((b, i) => b.classList.toggle('pick', i === idx));
+    if (zoomable()) { grid.classList.add('focus'); grid.style.transform = zoomTo(idx); }
+    ov.classList.remove('show');
+    $('thumbBtn').setAttribute('aria-pressed', 'false');
+    ovTimer = setTimeout(() => { ov.hidden = true; }, 460);
+  }
+  $('thumbBtn').onclick = openOverview;
+  $('ovClose').onclick = () => closeOverview();
 
   // Zoom view (full-resolution single page, scrollable / pinch-zoomable)
   const zoom = $('zoom'), zimg = zoom.querySelector('img');
@@ -351,8 +398,8 @@
   // Keyboard
   addEventListener('keydown', e => {
     if (e.target === pageInput) return;
-    if (e.key === 'Escape') { closeZoom(); toggleThumbs(false); }
-    if (zoom.classList.contains('open')) return;
+    if (e.key === 'Escape') { closeZoom(); closeOverview(); }
+    if (zoom.classList.contains('open') || ovOpen) return;
     if (e.key === 'ArrowRight' || e.key === 'PageDown') pageFlip.flipNext();
     if (e.key === 'ArrowLeft' || e.key === 'PageUp') pageFlip.flipPrev();
     if (e.key === 'Home') go(1);
