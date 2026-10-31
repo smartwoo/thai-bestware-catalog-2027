@@ -131,7 +131,7 @@
   #ovGrid.moving img { box-shadow: none !important; }
   #ovGrid button { border: 0; padding: 0; background: none; cursor: pointer; color: var(--muted); font: inherit; font-size: 12px; transition: opacity .3s; }
   #ovGrid.focus button:not(.pick) { opacity: 0; }
-  #ovGrid img { display: block; width: 100%; aspect-ratio: 612 / 792; object-fit: cover; border-radius: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.45); outline: 3px solid transparent; outline-offset: 2px; transition: outline-color .2s, transform .2s; }
+  #ovGrid img { display: block; width: 100%; aspect-ratio: var(--page-ratio, 612 / 792); object-fit: cover; border-radius: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.45); outline: 3px solid transparent; outline-offset: 2px; transition: outline-color .2s, transform .2s; }
   #ovGrid button:hover img { transform: translateY(-3px); }
   #ovGrid button { position: relative; }
   #ovGrid button.cur img { outline: 4px solid var(--accent); outline-offset: 3px; box-shadow: 0 0 0 9px rgba(230,25,126,.25), 0 6px 18px rgba(0,0,0,.45); }
@@ -527,6 +527,7 @@ function Flipbook(host, o) {
   document.getElementById('total').textContent = N;
 
   const pw = meta.pages[0].w, ph = meta.pages[0].h, ratio = pw / ph;
+  document.documentElement.style.setProperty('--page-ratio', pw + ' / ' + ph);
   const stage = $('stage'), rot = $('rot'), pageInput = $('pageInput');
   const store = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch (e) { return null; } };
   let mode = store('fb-mode') === 'double' ? 'double' : 'single';   // chosen by the viewer, any screen shape
@@ -756,7 +757,9 @@ function Flipbook(host, o) {
     } catch (e) {}
   };
   // Downloads: the page(s) on screen as PNG (from the full-resolution render), or the whole PDF.
-  const PDF_URL = 'thai-bestware-e-catalogue-2027.pdf';
+  // Per-catalog settings live in data/site.json so the same page serves every catalog.
+  const site = await fetch('data/site.json').then(r => r.json());
+  const PDF_URL = site.pdf;
   const dlMenu = $('dlMenu'), dlBtn = $('dlBtn');
   function visiblePages() {
     const idx = pageFlip.getCurrentPageIndex();
@@ -780,7 +783,7 @@ function Flipbook(host, o) {
       c.width = im.naturalWidth; c.height = im.naturalHeight;
       c.getContext('2d').drawImage(im, 0, 0);
       const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-      const name = 'thai-bestware-2027-page-' + pad(i + 1) + '.png';
+      const name = site.filePrefix + '-page-' + pad(i + 1) + '.png';
       const file = new File([blob], name, { type: 'image/png' });
       // On phones the share sheet offers "Save Image" straight to Photos.
       if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -796,15 +799,19 @@ function Flipbook(host, o) {
     for (const i of visiblePages()) {
       const b = document.createElement('button');
       b.setAttribute('role', 'menuitem');
-      b.innerHTML = '<img src="thumbs/' + pad(i + 1) + '.jpg" alt=""><span>บันทึกหน้า ' + (i + 1) + ' เป็นรูป PNG<small>ความละเอียด 1600 × 2071 px</small></span>';
+      b.innerHTML = '<img src="thumbs/' + pad(i + 1) + '.jpg" alt=""><span>บันทึกหน้า ' + (i + 1) + ' เป็นรูป PNG<small>ความละเอียด ' + pw + ' × ' + ph + ' px</small></span>';
       b.onclick = () => downloadPng(i, b);
       dlMenu.appendChild(b);
     }
     dlMenu.appendChild(document.createElement('hr'));
     const p = document.createElement('button');
     p.setAttribute('role', 'menuitem');
-    p.innerHTML = '<span class="ico">PDF</span><span>ดาวน์โหลดทั้งเล่ม (PDF)<small>19 หน้า · ประมาณ 33 MB</small></span>';
-    p.onclick = () => { const a = document.createElement('a'); a.href = PDF_URL; a.download = PDF_URL; document.body.appendChild(a); a.click(); a.remove(); closeDl(); };
+    p.innerHTML = '<span class="ico">PDF</span><span>ดาวน์โหลดทั้งเล่ม (PDF)<small>' + N + ' หน้า · ประมาณ ' + site.pdfSize + '</small></span>';
+    p.onclick = () => {
+      const a = document.createElement('a');
+      a.href = PDF_URL; a.download = PDF_URL.split('/').pop();   // cross-origin links download via the server's headers
+      document.body.appendChild(a); a.click(); a.remove(); closeDl();
+    };
     dlMenu.appendChild(p);
     dlMenu.hidden = false;
     dlBtn.setAttribute('aria-expanded', 'true');
