@@ -43,7 +43,8 @@
     display: flex; align-items: center; justify-content: center;
     padding: 8px 56px;
   }
-  #book { margin: 0 auto; }
+  #book { margin: 0 auto; min-width: 0 !important; min-height: 0 !important; max-width: none !important; touch-action: none; }
+  #book .stf__item { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   #book .page { background: #fff; }
   #book .page img { width: 100%; height: 100%; display: block; object-fit: cover; user-select: none; -webkit-user-drag: none; }
   .nav {
@@ -138,6 +139,9 @@
   const N = meta.numPages;
   const pad = i => String(i).padStart(3, '0');
   const src = i => 'pages/' + pad(i) + '.jpg';
+  // Phones get 1000px-wide pages: decoding 1600px pages costs too much memory/GPU during the flip.
+  const small = Math.min(screen.width, screen.height) * (devicePixelRatio || 1) <= 1300 || matchMedia('(max-width: 640px)').matches;
+  const pageSrc = i => small ? 'pages-m/' + pad(i) + '.jpg' : src(i);
   const $ = id => document.getElementById(id);
   document.getElementById('total').textContent = N;
 
@@ -146,11 +150,11 @@
   for (let i = 1; i <= N; i++) {
     const d = document.createElement('div');
     d.className = 'page';
-    if (i === 1 || i === N) d.dataset.density = 'hard';
     const img = new Image();
     img.alt = 'หน้า ' + i;
     img.draggable = false;
-    img.src = src(i);
+    img.decoding = 'async';
+    img.src = pageSrc(i);
     d.appendChild(img);
     book.appendChild(d);
   }
@@ -162,55 +166,63 @@
   })));
 
   const pw = meta.pages[0].w, ph = meta.pages[0].h;
+  // Single-page mode: in "stretch" StPageFlip goes portrait when the block is narrower than
+  // 2 × minWidth, so a huge minWidth (its CSS min-width is overridden in the stylesheet) keeps it one page.
   const pageFlip = new St.PageFlip(book, {
     width: pw / 2, height: ph / 2,
     size: 'stretch',
-    minWidth: 240, maxWidth: 1000, minHeight: 310, maxHeight: 1300,
-    showCover: true,
+    minWidth: 5000, maxWidth: 5000, minHeight: 100, maxHeight: 8000,
+    showCover: false,
     usePortrait: true,
-    maxShadowOpacity: 0.5,
+    drawShadow: true,
+    maxShadowOpacity: 0.3,
     mobileScrollSupport: false,
     showPageCorners: true,
-    flippingTime: 800,
+    flippingTime: 650,
     swipeDistance: 30
   });
-  pageFlip.loadFromHTML(book.querySelectorAll('.page'));
-  $('loading').remove();
 
-  // Fit the book inside the stage (StPageFlip "stretch" fills width; cap height via max-width).
+  // Fit one page inside the stage.
   const stage = $('stage');
   function fit() {
     const cs = getComputedStyle(stage);
     const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 18;
-    const portrait = availW < availH * (pw / ph) * 1.6 || availW < 640;
-    const spreadRatio = (portrait ? 1 : 2) * pw / ph;
-    const w = Math.min(availW, availH * spreadRatio);
+    const w = Math.min(availW, availH * pw / ph);
     book.style.width = Math.floor(w) + 'px';
-    book.style.height = Math.floor(w / spreadRatio) + 'px';
+    book.style.height = Math.floor(w * ph / pw) + 'px';
   }
   fit();
-  addEventListener('resize', () => { fit(); pageFlip.update(); });
-  pageFlip.update();
+  pageFlip.loadFromHTML(book.querySelectorAll('.page'));
+  $('loading').remove();
+
+  // Re-layout only when the size really changes, never mid-flip. Mobile browsers fire resize
+  // whenever the address bar slides in/out; relayouting then is what made the page jitter.
+  const ui = pageFlip.getUI();
+  if (ui && ui.onResize) removeEventListener('resize', ui.onResize);  // the library's own unthrottled handler
+  let state = 'read', lastW = innerWidth, lastH = innerHeight, pending = false, timer;
+  function relayout() {
+    if (state !== 'read') { pending = true; return; }
+    pending = false; lastW = innerWidth; lastH = innerHeight;
+    fit(); pageFlip.update();
+  }
+  pageFlip.on('changeState', e => { state = e.data; if (state === 'read' && pending) relayout(); });
+  addEventListener('resize', () => {
+    const touch = matchMedia('(pointer: coarse)').matches;
+    if (innerWidth === lastW && touch && Math.abs(innerHeight - lastH) < 160) return;
+    clearTimeout(timer); timer = setTimeout(relayout, 150);
+  });
 
   const pageInput = $('pageInput');
   function sync() {
     const idx = pageFlip.getCurrentPageIndex();
-    const portrait = pageFlip.getOrientation() === 'portrait';
-    let label = String(idx + 1);
-    if (!portrait && idx > 0 && idx < N - 1) {
-      const l = idx % 2 === 1 ? idx : idx - 1;
-      label = (l + 1) + (l + 2 <= N ? '-' + (l + 2) : '');
-    }
-    if (document.activeElement !== pageInput) pageInput.value = label;
+    if (document.activeElement !== pageInput) pageInput.value = idx + 1;
     $('prev').disabled = idx === 0;
-    const lastVisible = portrait || idx === 0 ? idx : (idx % 2 === 1 ? idx + 1 : idx);
-    $('next').disabled = lastVisible >= N - 1;
+    $('next').disabled = idx >= N - 1;
     $('thumbs').querySelectorAll('button').forEach((b, i) => b.classList.toggle('cur', i === idx));
     history.replaceState(null, '', '#page=' + (idx + 1));
   }
   pageFlip.on('flip', sync);
-  pageFlip.on('changeOrientation', () => { fit(); sync(); });
 
   const go = n => { n = Math.max(1, Math.min(N, n | 0)); pageFlip.flip(n - 1); };
   $('prev').onclick = () => pageFlip.flipPrev();
