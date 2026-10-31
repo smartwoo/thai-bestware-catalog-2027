@@ -40,15 +40,32 @@
   header h1 { font-size: 16px; font-weight: 500; margin: 0; line-height: 1.2; }
   header small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
   #stage {
-    flex: 1; min-height: 0; position: relative;
+    flex: 1; min-height: 0; position: relative; touch-action: none;
     display: flex; align-items: center; justify-content: center;
     padding: 8px 56px;
   }
   #rot { flex: 0 0 auto; position: relative; transition: transform .35s ease; }
-  #book { margin: 0 auto; min-width: 0 !important; min-height: 0 !important; max-width: none !important; touch-action: none; }
-  #book .stf__item { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-  #book .page { background: #fff; }
-  #book .page img { width: 100%; height: 100%; display: block; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+  /* Flip engine. Every moving part is a transform on its own layer: the fold is made of rotated
+     overflow:hidden "half-plane" boxes and a mirrored flap, so the GPU composites each frame
+     without repainting the page images (clip-path based flips repaint, which stuttered on phones). */
+  .fb { position: relative; user-select: none; -webkit-user-select: none; touch-action: none; cursor: grab; }
+  .fb .pg { position: absolute; top: 0; overflow: hidden; background: #fff; }
+  .fb .pg img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; pointer-events: none; }
+  .fb .st { box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .fb .spine { position: absolute; top: 0; width: 44px; height: 100%; pointer-events: none;
+    background: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,.14) 48%, rgba(0,0,0,.2) 50%, rgba(0,0,0,.08) 52%, rgba(0,0,0,0)); }
+  .fb .fl { position: absolute; top: 0; }
+  .fb .fl .pg { left: 0; }
+  .fb .clip { position: absolute; left: 0; top: 0; overflow: hidden; transform-origin: 0 0; }
+  .fb .inner { transform-origin: 0 0; }
+  .fb .flapg { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+  .fb .flapg .pg { box-shadow: none; }
+  .fb .back img { transform: scaleX(-1); }
+  .fb .sh { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+  .fb .shu { background: linear-gradient(to right, rgba(0,0,0,.38), rgba(0,0,0,.12) 35%, rgba(0,0,0,0)); }
+  .fb .shf { background: linear-gradient(to right, rgba(0,0,0,.22), rgba(255,255,255,.18) 25%, rgba(0,0,0,.04) 70%, rgba(0,0,0,0)); }
+  .fb .shr { background: linear-gradient(to left, rgba(0,0,0,.16), rgba(0,0,0,0)); }
+  .fb.flipping .clip, .fb.flipping .inner, .fb.flipping .flapg, .fb.flipping .sh { will-change: transform; }
   .nav {
     position: absolute; top: 50%; transform: translateY(-50%);
     width: 44px; height: 44px; border-radius: 50%; border: 0;
@@ -78,15 +95,40 @@
   #counter { background: var(--bar); border-radius: 19px; height: 38px; display: inline-flex; align-items: center; padding: 0 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
   #counter input { width: 3.2em; background: transparent; border: 0; border-bottom: 1px solid var(--muted); color: #fff; font: inherit; text-align: center; padding: 0; }
 
+  #dlMenu {
+    position: fixed; z-index: 22; left: 50%; transform: translateX(-50%);
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    width: min(320px, calc(100vw - 32px)); padding: 6px;
+    background: #2b1220; border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  #dlMenu button {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px;
+    background: none; border: 0; border-radius: 9px; color: #fff; font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+  }
+  #dlMenu button:hover, #dlMenu button:focus-visible { background: rgba(255,255,255,.08); outline: none; }
+  #dlMenu button:disabled { opacity: .5; cursor: progress; }
+  #dlMenu img { width: 30px; height: 39px; object-fit: cover; border-radius: 2px; flex: none; }
+  #dlMenu .ico { width: 30px; height: 39px; display: grid; place-items: center; flex: none; background: #e6197e; border-radius: 3px; font-size: 10px; font-weight: 600; }
+  #dlMenu small { display: block; color: var(--muted); font-size: 12px; }
+  #dlMenu hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 4px 6px; }
+
   /* Page overview: zooms out from the current page to a grid, and back into the page you pick. */
-  #overview { position: fixed; inset: 0; z-index: 25; display: flex; flex-direction: column; background: rgba(24,9,16,0); transition: background .4s ease; }
-  #overview.show { background: rgba(24,9,16,.97); }
+  /* Everything that animates here is transform/opacity on its own layer, so the GPU composites it
+     without repainting: the backdrop fades via opacity, the grid scales via transform. */
+  #overview { position: fixed; inset: 0; z-index: 25; display: flex; flex-direction: column; }
+  #overview::before { content: ""; position: absolute; inset: 0; background: rgb(24,9,16); opacity: 0; transition: opacity .4s ease; will-change: opacity; }
+  #overview.show::before { opacity: .97; }
+  .ov-head, #ovScroll { position: relative; }
   .ov-head { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 6px; opacity: 0; transition: opacity .3s; }
   #overview.show .ov-head { opacity: 1; }
   .ov-head b { font-weight: 500; font-size: 15px; }
   #ovScroll { flex: 1; overflow: auto; touch-action: pan-y; padding: 10px 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
   #ovGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 22px 16px; max-width: 1180px; margin: 0 auto; transform-origin: 0 0; }
   #ovGrid.anim { transition: transform .45s cubic-bezier(.22,.7,.2,1); }
+  #ovGrid.moving { will-change: transform; }
+  #ovGrid.moving button { will-change: opacity; }
+  #ovGrid.moving img { box-shadow: none !important; }
   #ovGrid button { border: 0; padding: 0; background: none; cursor: pointer; color: var(--muted); font: inherit; font-size: 12px; transition: opacity .3s; }
   #ovGrid.focus button:not(.pick) { opacity: 0; }
   #ovGrid img { display: block; width: 100%; aspect-ratio: 612 / 792; object-fit: cover; border-radius: 3px; box-shadow: 0 6px 18px rgba(0,0,0,.45); outline: 3px solid transparent; outline-offset: 2px; transition: outline-color .2s, transform .2s; }
@@ -144,6 +186,7 @@
   <button class="tb" id="rotBtn" title="หมุนหน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span class="lbl">หมุน</span></button>
   <button class="tb" id="zoomBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg><span class="lbl">ซูม</span></button>
   <button class="tb" id="fsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span class="lbl">เต็มจอ</span></button>
+  <button class="tb" id="dlBtn" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span class="lbl">ดาวน์โหลด</span></button>
   <button class="tb" id="shareBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span class="lbl">แชร์</span></button>
 </footer>
 
@@ -151,9 +194,325 @@
   <div class="ov-head"><b>ทุกหน้า · เลือกหน้าที่ต้องการ</b><button class="tb" id="ovClose" aria-label="ปิด">✕</button></div>
   <div id="ovScroll"><div id="ovGrid"></div></div>
 </div>
+<div id="dlMenu" role="menu" hidden></div>
 <div id="zoom"><button class="tb close" aria-label="ปิด">✕</button><img alt=""></div>
 
-<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+<script>
+/*
+ * Flipbook: a page-curl engine that animates with transforms only.
+ *
+ * Geometry (in "flip area" coordinates: origin at the top-left of the turning page, W × H):
+ * the grabbed corner C is dragged to point P. The fold line is the perpendicular bisector of
+ * C→P (through midpoint M, normal n pointing at C). The page is cut along that line: the part
+ * on the spine side stays (front), the part on the corner side is mirrored across the line and
+ * becomes the flap showing the page's back. Both cuts are rotated overflow:hidden boxes, so a
+ * frame only updates transform matrices — no repaint.
+ *
+ * Single mode: one page; turning forward shows the next page underneath and on the flap.
+ * Double mode: spreads [–,0], [1,2], [3,4]…; the right page turns over onto the left.
+ */
+function Flipbook(host, o) {
+  const N = o.count, dbl = !!o.double;
+  const el = document.createElement('div');
+  el.className = 'fb';
+  host.appendChild(el);
+  const div = (cls, parent) => { const d = document.createElement('div'); d.className = cls; (parent || el).appendChild(d); return d; };
+  const img = parent => { const i = new Image(); i.draggable = false; i.alt = ''; parent.appendChild(i); return i; };
+
+  const sL = div('pg st'), sR = div('pg st');
+  const sLi = img(sL), sRi = img(sR);
+  const spine = dbl ? div('spine') : null;
+  const fl = div('fl'); fl.hidden = true;
+  const under = div('pg', fl), underI = img(under), shU = div('sh shu', under);
+  const fClip = div('clip', fl), fIn = div('pg inner', fClip), fI = img(fIn), shR = div('sh shr', fIn);
+  const flapG = div('flapg', fl), bClip = div('clip', flapG), bIn = div('pg inner back', bClip), bI = img(bIn), shF = div('sh shf', bIn);
+
+  let W = 1, H = 1, S = 4, x0 = 0;
+  let idx = clampIdx(o.start | 0);
+  let job = null;            // current flip: { dir, y0, base, target, ... }
+  let raf = 0, anim = null, handlers = {};
+  const emit = (ev, v) => (handlers[ev] || []).forEach(f => f(v));
+
+  function clampIdx(i) { i = Math.max(0, Math.min(N - 1, i)); return dbl ? (i === 0 ? 0 : (i % 2 ? i : i - 1)) : i; }
+  const spreadOf = i => dbl ? (i === 0 ? 0 : Math.ceil(i / 2)) : i;
+  const leftOf = s => (dbl && s > 0 && 2 * s - 1 < N) ? 2 * s - 1 : null;
+  const rightOf = s => dbl ? (2 * s < N ? 2 * s : null) : (s < N ? s : null);
+  const idxOfSpread = s => dbl ? (s === 0 ? 0 : 2 * s - 1) : s;
+  const lastSpread = dbl ? spreadOf(N - 1) : N - 1;
+
+  function setImg(im, i) {
+    if (i == null) { im.parentNode.style.visibility = 'hidden'; return; }
+    im.parentNode.style.visibility = '';
+    const s = o.src(i);
+    if (im.getAttribute('src') !== s) im.src = s;
+  }
+  function decoded(i) {
+    if (i == null) return Promise.resolve();
+    const t = new Image(); t.src = o.src(i);
+    return Promise.race([t.decode().catch(() => {}), new Promise(r => setTimeout(r, 150))]);
+  }
+  // Keep neighbours decoded so a drag can start instantly.
+  const warm = [];
+  function prefetch() {
+    const s = spreadOf(idx);
+    warm.length = 0;
+    for (let k = -2; k <= 2; k++) {
+      const t = s + k;
+      if (t < 0 || t > lastSpread) continue;
+      [leftOf(t), rightOf(t)].forEach(i => { if (i != null) { const im = new Image(); im.src = o.src(i); im.decode().catch(() => {}); warm.push(im); } });
+    }
+  }
+
+  function showStatic() {
+    const s = spreadOf(idx);
+    if (dbl) { setImg(sLi, leftOf(s)); setImg(sRi, rightOf(s)); }
+    else { sL.style.visibility = 'hidden'; setImg(sRi, s); }
+    sR.style.visibility = (dbl ? rightOf(s) : s) == null ? 'hidden' : '';
+  }
+
+  function resize(w, h) {
+    W = dbl ? w / 2 : w; H = h; S = 3 * (W + H); x0 = dbl ? W : 0;
+    el.style.width = w + 'px'; el.style.height = h + 'px';
+    for (const p of [sL, sR, under, fIn, bIn]) { p.style.width = W + 'px'; p.style.height = H + 'px'; }
+    sL.style.left = '0px'; sR.style.left = x0 + 'px';
+    if (spine) spine.style.left = (W - 22) + 'px';
+    fl.style.left = x0 + 'px'; fl.style.width = W + 'px'; fl.style.height = H + 'px';
+    for (const c of [fClip, bClip]) { c.style.width = S + 'px'; c.style.height = S + 'px'; }
+    for (const sh of [shU, shF, shR]) { sh.style.width = (W * 0.22) + 'px'; sh.style.height = S + 'px'; }
+    if (job) render(job.P);
+  }
+
+  // Which pages take part in a turn from the current spread to spread t.
+  function plan(dir, t) {
+    const s = spreadOf(idx);
+    if (dir === 'next') {
+      if (t <= s || t > lastSpread) return null;
+      return dbl ? { front: rightOf(s), back: leftOf(t), under: rightOf(t), left: leftOf(s), t }
+                 : { front: s, back: t, under: t, left: null, t };
+    }
+    if (t >= s || t < 0) return null;
+    return dbl ? { front: rightOf(t), back: leftOf(s), under: rightOf(s), left: leftOf(t), t }
+               : { front: t, back: s, under: s, left: null, t };
+  }
+
+  function begin(dir, y0, t) {
+    const p = plan(dir, t);
+    if (!p) return false;
+    setImg(fI, p.front); setImg(bI, p.back); setImg(underI, p.under);
+    if (dbl) setImg(sLi, p.left);
+    fIn.style.visibility = bIn.style.visibility = '';
+    if (p.front == null) fIn.style.visibility = 'hidden';
+    if (p.back == null) bIn.style.visibility = 'hidden';
+    sR.style.visibility = 'hidden';
+    fl.hidden = false;
+    el.classList.add('flipping');
+    job = Object.assign(p, { dir, y0, C: { x: W, y: y0 }, P: null });
+    render(dir === 'next' ? { x: W, y: y0 } : { x: -W, y: y0 });
+    return true;
+  }
+
+  // Keep the paper attached at the spine (it can't stretch).
+  function constrain(P) {
+    const y0 = job.y0, A = { x: 0, y: y0 }, B = { x: 0, y: H - y0 }, D = Math.hypot(W, H);
+    let dx = P.x - A.x, dy = P.y - A.y, d = Math.hypot(dx, dy);
+    if (d > W) { P = { x: A.x + dx * W / d, y: A.y + dy * W / d }; }
+    dx = P.x - B.x; dy = P.y - B.y; d = Math.hypot(dx, dy);
+    if (d > D) { P = { x: B.x + dx * D / d, y: B.y + dy * D / d }; }
+    return P;
+  }
+
+  const T = (x, y) => 'translate(' + x + 'px,' + y + 'px)';
+  function render(P) {
+    P = constrain(P);
+    job.P = P;
+    const C = job.C;
+    let dx = C.x - P.x, dy = C.y - P.y, len = Math.hypot(dx, dy);
+    let nx, ny, Mx, My;
+    if (len < 0.5) { nx = 1; ny = 0; Mx = W + 2; My = C.y; }
+    else { nx = dx / len; ny = dy / len; Mx = (C.x + P.x) / 2; My = (C.y + P.y) / 2; }
+    const phi = Math.atan2(ny, nx), deg = phi * 180 / Math.PI;
+    const rot = 'rotate(' + deg + 'deg)', unrot = 'rotate(' + (-deg) + 'deg)';
+    // Spine side of the fold: the part of the front page still lying flat.
+    fClip.style.transform = T(Mx, My) + rot + T(-S, -S / 2);
+    fIn.style.transform = T(S, S / 2) + unrot + T(-Mx, -My);
+    // Corner side, mirrored across the fold: the flap.
+    bClip.style.transform = T(Mx, My) + rot + T(0, -S / 2);
+    bIn.style.transform = T(0, S / 2) + unrot + T(-Mx, -My);
+    const a = 1 - 2 * nx * nx, b = -2 * nx * ny, d = 1 - 2 * ny * ny;
+    flapG.style.transform = 'matrix(' + a + ',' + b + ',' + b + ',' + d + ',' + (Mx - (a * Mx + b * My)) + ',' + (My - (b * Mx + d * My)) + ')';
+    // Shadows hug the fold line.
+    const along = T(Mx, My) + rot;
+    shU.style.transform = along + T(0, -S / 2);
+    shF.style.transform = along + T(0, -S / 2);
+    shR.style.transform = along + T(-W * 0.22, -S / 2);
+    const prog = Math.min(1, Math.max(0, (W - P.x) / (2 * W)));
+    const op = Math.min(1, len / (W * 0.15)) * Math.min(1, (1 - prog) * 5);
+    shU.style.opacity = shF.style.opacity = shR.style.opacity = op;
+  }
+
+  function finish(done) {
+    if (done) idx = idxOfSpread(job.t);
+    job = null;
+    showStatic();
+    // Swap to the static spread once its images are ready, so nothing flashes.
+    const s = spreadOf(idx);
+    Promise.all([decoded(dbl ? leftOf(s) : null), decoded(rightOf(s))]).then(() => {
+      if (job) return;
+      fl.hidden = true;
+      el.classList.remove('flipping');
+    });
+    if (done) { emit('flip', idx); prefetch(); }
+    emit('state', 'read');
+    if (queued) { const q = queued; queued = null; setTimeout(q, 0); }
+  }
+  // A tap while a page is still turning is kept and played right after, not dropped.
+  let queued = null;
+  const run = fn => { if (job || anim) queued = fn; else fn(); };
+
+  const ease = {
+    inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+    out: t => 1 - Math.pow(1 - t, 3)
+  };
+  function animate(path, ms, easing, then) {
+    cancelAnimationFrame(raf);
+    const t0 = performance.now();
+    anim = true;
+    emit('state', 'flipping');
+    const step = now => {
+      const t = Math.min(1, (now - t0) / ms);
+      render(path(easing(t)));
+      if (t < 1) raf = requestAnimationFrame(step);
+      else { anim = false; then(); }
+    };
+    raf = requestAnimationFrame(step);
+  }
+
+  // Programmatic turn along a gentle arc from the bottom corner.
+  async function turn(dir, t) {
+    if (job || anim) return;
+    const p = plan(dir, t);
+    if (!p) return;
+    await Promise.all([decoded(p.front), decoded(p.back), decoded(p.under)]);
+    if (job || anim || !begin(dir, H, t)) return;
+    const lift = H * 0.16;
+    const from = dir === 'next' ? W : -W, to = -from;
+    animate(e => ({ x: from + (to - from) * e, y: H - lift * Math.sin(Math.PI * e) }), 700, ease.inOut, () => finish(true));
+  }
+
+  // Release a dragged page: complete or fall back, at a speed matching the remaining distance.
+  function release(complete) {
+    const P = job.P, y0 = job.y0;
+    const end = (job.dir === 'next') === complete ? { x: -W, y: y0 } : { x: W, y: y0 };
+    const dist = Math.hypot(end.x - P.x, end.y - P.y);
+    const ms = Math.max(160, Math.min(520, dist / (2 * W) * 650));
+    animate(e => ({ x: P.x + (end.x - P.x) * e, y: P.y + (end.y - P.y) * e }), ms, ease.out, () => finish(complete));
+  }
+
+  // ---- pointer input ----
+  function local(e) {
+    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const a = (o.angle ? o.angle() : 0) * Math.PI / 180, vx = e.clientX - cx, vy = e.clientY - cy;
+    return { x: vx * Math.cos(a) + vy * Math.sin(a) + el.offsetWidth / 2 - x0, y: -vx * Math.sin(a) + vy * Math.cos(a) + el.offsetHeight / 2 };
+  }
+  const pointers = new Set();
+  let drag = null, hover = null;
+  const nextSpread = () => spreadOf(idx) + 1, prevSpread = () => spreadOf(idx) - 1;
+
+  el.addEventListener('pointerdown', e => {
+    pointers.add(e.pointerId);
+    if (pointers.size > 1) { cancelDrag(); return; }   // second finger: leave it to pinch
+    if (anim || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const p = local(e);
+    drag = { id: e.pointerId, p0: p, t0: performance.now(), moves: [[performance.now(), p.x]], started: false, base: null };
+    if (hover && job) { drag.started = true; drag.base = job.P; hover = null; }
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  el.addEventListener('pointermove', e => {
+    const p = local(e);
+    if (!drag) { if (e.pointerType === 'mouse' && !anim) hoverAt(p); return; }
+    if (e.pointerId !== drag.id) return;
+    drag.moves.push([performance.now(), p.x]);
+    if (drag.moves.length > 6) drag.moves.shift();
+    if (!drag.started) {
+      const dx = p.x - drag.p0.x;
+      if (Math.hypot(dx, p.y - drag.p0.y) < 6) return;
+      const dir = dx < 0 ? 'next' : 'prev';
+      if (!begin(dir, drag.p0.y < H / 2 ? 0 : H, dir === 'next' ? nextSpread() : prevSpread())) { drag = null; return; }
+      drag.started = true;
+      drag.base = job.P;
+      emit('state', 'user_fold');
+    }
+    render({ x: drag.base.x + 2 * (p.x - drag.p0.x), y: drag.base.y + (p.y - drag.p0.y) });
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (d.started && job) {
+      const m = d.moves, dt = m[m.length - 1][0] - m[0][0], v = dt > 0 ? (m[m.length - 1][1] - m[0][1]) / dt : 0;
+      const P = job.P;
+      release(job.dir === 'next' ? (P.x < 0 || v < -0.35) : (P.x > 0 || v > 0.35));
+      return;
+    }
+    // A tap near the outer edge turns the page; the middle is left for double-tap zoom.
+    if (e.type === 'pointerup' && performance.now() - d.t0 < 350) {
+      const x = d.p0.x;
+      if (x > W * 0.75) api.flipNext();
+      else if (dbl ? x < -W * 0.75 : x < W * 0.25) api.flipPrev();
+    }
+  }
+  el.addEventListener('pointerup', endPointer);
+  el.addEventListener('pointercancel', endPointer);
+  el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && hover && !drag) unhover(); });
+  function cancelDrag() {
+    if (drag && drag.started && job) release(false);
+    drag = null;
+  }
+
+  // Mouse hovering near a corner lifts it a little, inviting a drag.
+  function hoverAt(p) {
+    const zone = Math.min(90, W * 0.2);
+    const corner = [['next', W, 0], ['next', W, H], ['prev', -W, 0], ['prev', -W, H]]
+      .find(([dir, cx, cy]) => (dir === 'next' || dbl) && Math.hypot(p.x - cx, p.y - cy) < zone);
+    if (!corner) { if (hover) unhover(); return; }
+    const [dir, cx, cy] = corner;
+    if (!hover || hover.dir !== dir || hover.y0 !== cy) {
+      if (job) { finish(false); }
+      if (!begin(dir, cy, dir === 'next' ? nextSpread() : prevSpread())) return;
+      hover = { dir, y0: cy };
+    }
+    const pull = 28;
+    render({
+      x: dir === 'next' ? Math.min(p.x, W - pull) : Math.max(p.x, -W + pull),
+      y: cy === 0 ? Math.max(p.y, pull) : Math.min(p.y, H - pull)
+    });
+  }
+  function unhover() {
+    hover = null;
+    if (!job || anim) return;
+    const P = job.P, end = job.dir === 'next' ? { x: W, y: job.y0 } : { x: -W, y: job.y0 };
+    animate(e => ({ x: P.x + (end.x - P.x) * e, y: P.y + (end.y - P.y) * e }), 180, ease.out, () => finish(false));
+  }
+
+  const api = {
+    getCurrentPageIndex: () => idx,
+    getOrientation: () => dbl ? 'landscape' : 'portrait',
+    busy: () => !!(job || anim),
+    flipNext: () => run(() => turn('next', spreadOf(idx) + 1)),
+    flipPrev: () => run(() => turn('prev', spreadOf(idx) - 1)),
+    flip: i => run(() => { const t = spreadOf(clampIdx(i)), s = spreadOf(idx); if (t !== s) turn(t > s ? 'next' : 'prev', t); }),
+    turnToPage: i => { if (job) return; idx = clampIdx(i); showStatic(); emit('flip', idx); prefetch(); },
+    on: (ev, f) => { (handlers[ev] = handlers[ev] || []).push(f); },
+    resize,
+    element: el,
+    pageAt: e => { const p = local(e); return dbl ? (p.x < 0 ? leftOf(spreadOf(idx)) : rightOf(spreadOf(idx))) : idx; },
+    destroy: () => { cancelAnimationFrame(raf); el.remove(); }
+  };
+  showStatic();
+  prefetch();
+  return api;
+}
+</script>
 <script>
 (async function () {
   const meta = await fetch('data/meta.json').then(r => r.json());
@@ -163,6 +522,7 @@
   // Phones get 1000px-wide pages: decoding 1600px pages costs too much memory/GPU during the flip.
   const small = Math.min(screen.width, screen.height) * (devicePixelRatio || 1) <= 1300 || matchMedia('(max-width: 640px)').matches;
   const pageSrc = i => small ? 'pages-m/' + pad(i) + '.jpg' : src(i);
+  const coarse = matchMedia('(pointer: coarse)').matches;
   const $ = id => document.getElementById(id);
   document.getElementById('total').textContent = N;
 
@@ -171,7 +531,7 @@
   const store = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch (e) { return null; } };
   let mode = store('fb-mode') === 'double' ? 'double' : 'single';   // chosen by the viewer, any screen shape
   let angle = 0;                                                    // 0 / 90 / 180 / 270, clockwise
-  let book = null, pageFlip = null, imgs = [], state = 'read', pending = false;
+  let pageFlip = null, pending = false;
 
   // Size the rotation box to one page or one spread; when turned 90/270 it fits the swapped stage.
   function fit() {
@@ -184,56 +544,20 @@
     rot.style.width = w + 'px';
     rot.style.height = h + 'px';
     rot.style.transform = angle ? 'rotate(' + angle + 'deg)' : '';
-    if (book) book.style.height = h + 'px';
+    if (pageFlip) pageFlip.resize(w, h);
   }
 
-  // (Re)build the book. StPageFlip "stretch" shows one page when the block is narrower than
-  // 2 × minWidth, so minWidth picks the mode (its CSS min-width is overridden in the stylesheet).
+  // (Re)build the book in the current mode, opening at page index `start`.
   function build(start) {
     if (pageFlip) pageFlip.destroy();
-    book = document.createElement('div');
-    book.id = 'book';
-    rot.appendChild(book);
-    const dbl = mode === 'double';
-    for (let i = 1; i <= N; i++) {
-      const d = document.createElement('div');
-      d.className = 'page';
-      if (dbl && (i === 1 || i === N)) d.dataset.density = 'hard';
-      const img = new Image();
-      img.alt = 'หน้า ' + i;
-      img.draggable = false;
-      img.decoding = 'async';
-      img.src = pageSrc(i);
-      d.appendChild(img);
-      book.appendChild(d);
-    }
-    imgs = [...book.querySelectorAll('img')];
-    fit();
-    pageFlip = new St.PageFlip(book, {
-      width: pw / 2, height: ph / 2,
-      size: 'stretch',
-      minWidth: dbl ? 50 : 5000, maxWidth: 5000, minHeight: 50, maxHeight: 8000,
-      showCover: dbl,
-      usePortrait: true,
-      startPage: start,
-      drawShadow: true,
-      maxShadowOpacity: 0.3,
-      mobileScrollSupport: false,
-      showPageCorners: angle === 0,
-      useMouseEvents: angle === 0,   // drag maths assume an unrotated book; rotated books use the swipe handler below
-      flippingTime: 650,
-      swipeDistance: 30
-    });
-    pageFlip.loadFromHTML(book.querySelectorAll('.page'));
-    const ui = pageFlip.getUI();
-    if (ui && ui.onResize) removeEventListener('resize', ui.onResize);  // the library's own unthrottled handler
-    state = 'read';
-    pageFlip.on('changeState', e => { state = e.data; if (state === 'read' && pending) relayout(); });
+    pageFlip = Flipbook(rot, { count: N, double: mode === 'double', start, src: i => pageSrc(i + 1), angle: () => angle });
     pageFlip.on('flip', sync);
-    book.addEventListener('dblclick', e => {
-      const img = e.target.closest('.page')?.querySelector('img');
-      openZoom(img ? imgs.indexOf(img) + 1 : pageFlip.getCurrentPageIndex() + 1);
+    pageFlip.on('state', s => { if (s === 'read' && pending) relayout(); });
+    pageFlip.element.addEventListener('dblclick', e => {
+      const n = pageFlip.pageAt(e);
+      openZoom((n == null ? pageFlip.getCurrentPageIndex() : n) + 1);
     });
+    fit();
     sync();
   }
 
@@ -241,9 +565,9 @@
   // whenever the address bar slides in/out; relayouting then is what made the page jitter.
   let lastW = innerWidth, lastH = innerHeight, timer;
   function relayout() {
-    if (state !== 'read') { pending = true; return; }
+    if (pageFlip.busy()) { pending = true; return; }
     pending = false; lastW = innerWidth; lastH = innerHeight;
-    fit(); pageFlip.update();
+    fit();
   }
   addEventListener('resize', () => {
     const touch = matchMedia('(pointer: coarse)').matches;
@@ -286,18 +610,8 @@
   $('rotBtn').onclick = () => {
     angle = (angle + 90) % 360;
     zoom.querySelector('img').style.transform = angle === 180 ? 'rotate(180deg)' : '';
-    build(pageFlip.getCurrentPageIndex());
+    fit();   // the engine maps pointer input through the rotation itself
   };
-  // Swipe on a rotated book: map the screen swipe onto the book's own x axis.
-  let sw = null;
-  stage.addEventListener('pointerdown', e => { if (angle && !e.target.closest('button')) sw = { x: e.clientX, y: e.clientY }; });
-  addEventListener('pointerup', e => {
-    if (!sw) return;
-    const dx = e.clientX - sw.x, dy = e.clientY - sw.y, a = angle * Math.PI / 180;
-    sw = null;
-    const lx = dx * Math.cos(a) + dy * Math.sin(a), ly = -dx * Math.sin(a) + dy * Math.cos(a);
-    if (Math.abs(lx) > 40 && Math.abs(lx) > Math.abs(ly)) lx < 0 ? pageFlip.flipNext() : pageFlip.flipPrev();
-  });
 
   // Wait for the first few pages so the opening flip is smooth.
   let loaded = 0;
@@ -354,8 +668,10 @@
     }
     [...grid.children].forEach((b, i) => { b.classList.toggle('cur', shown.includes(i)); b.classList.toggle('pick', i === idx); });
     grid.classList.remove('anim');
+    grid.classList.add('moving');
     grid.style.transform = 'none';
     ov.hidden = false;
+    ovTimer = setTimeout(() => grid.classList.remove('moving'), 500);
     grid.children[idx].scrollIntoView({ block: 'center' });
     if (zoomable()) { grid.classList.add('focus'); grid.style.transform = zoomTo(idx); }
     grid.offsetWidth;   // commit the zoomed-in start state before animating out
@@ -370,27 +686,29 @@
   function closeOverview(idx) {
     if (!ovOpen) return;
     ovOpen = false;
-    if (idx != null && idx !== pageFlip.getCurrentPageIndex()) { pageFlip.turnToPage(idx); sync(); }
-    idx = pageFlip.getCurrentPageIndex();
+    clearTimeout(ovTimer);
+    grid.classList.add('moving');
+    if (idx != null) pageFlip.turnToPage(idx);   // in 2-page mode this opens the spread holding idx
+    else idx = pageFlip.getCurrentPageIndex();
     [...grid.children].forEach((b, i) => b.classList.toggle('pick', i === idx));
     if (zoomable()) { grid.classList.add('focus'); grid.style.transform = zoomTo(idx); }
     ov.classList.remove('show');
     $('thumbBtn').setAttribute('aria-pressed', 'false');
-    ovTimer = setTimeout(() => { ov.hidden = true; }, 460);
+    ovTimer = setTimeout(() => { ov.hidden = true; grid.classList.remove('moving'); }, 460);
   }
   $('thumbBtn').onclick = openOverview;
   $('ovClose').onclick = () => closeOverview();
 
   // Pinch on touch screens: fingers together on the book → overview; fingers apart on the
   // overview → back into the page under the fingers (or the current page). Two-finger touches
-  // are kept away from StPageFlip and from the browser's own page zoom.
+  // are kept from the browser's own page zoom (the flip engine drops its drag on a second finger).
   let pinch = null;
   const span = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   addEventListener('touchstart', e => {
     if (e.touches.length !== 2 || zoom.classList.contains('open')) return;
     e.stopPropagation();
     pinch = {
-      d0: span(e.touches), done: false, fromBook: !ovOpen,
+      d0: span(e.touches), done: false,
       x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2
     };
   }, { capture: true, passive: true });
@@ -410,12 +728,10 @@
   addEventListener('touchend', e => {
     if (!pinch) return;
     e.stopPropagation();
-    if (e.touches.length) return;
-    // The first finger already reached StPageFlip before the second landed; rebuild so it
-    // doesn't hold a half-started fold.
-    if (pinch.fromBook) build(pageFlip.getCurrentPageIndex());
-    pinch = null;
+    if (!e.touches.length) pinch = null;
   }, { capture: true });
+  // iOS Safari pinch-zooms the whole page via gesture events unless they are cancelled.
+  document.addEventListener('gesturestart', e => e.preventDefault());
 
   // Zoom view (full-resolution single page, scrollable / pinch-zoomable)
   const zoom = $('zoom'), zimg = zoom.querySelector('img');
@@ -439,6 +755,64 @@
       else { await navigator.clipboard.writeText(url); toast('คัดลอกลิงก์แล้ว'); }
     } catch (e) {}
   };
+  // Downloads: the page(s) on screen as PNG (from the full-resolution render), or the whole PDF.
+  const PDF_URL = 'thai-bestware-e-catalogue-2027.pdf';
+  const dlMenu = $('dlMenu'), dlBtn = $('dlBtn');
+  function visiblePages() {
+    const idx = pageFlip.getCurrentPageIndex();
+    if (pageFlip.getOrientation() !== 'landscape' || idx === 0) return [idx];
+    return idx + 1 < N ? [idx, idx + 1] : [idx];
+  }
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+  async function downloadPng(i, btn) {
+    btn.disabled = true;
+    try {
+      const im = new Image();
+      im.src = src(i + 1);
+      await im.decode();
+      const c = document.createElement('canvas');
+      c.width = im.naturalWidth; c.height = im.naturalHeight;
+      c.getContext('2d').drawImage(im, 0, 0);
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      const name = 'thai-bestware-2027-page-' + pad(i + 1) + '.png';
+      const file = new File([blob], name, { type: 'image/png' });
+      // On phones the share sheet offers "Save Image" straight to Photos.
+      if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: name }); return; }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+      saveBlob(blob, name);
+    } catch (e) { toast('ดาวน์โหลดไม่สำเร็จ ลองอีกครั้ง'); }
+    finally { btn.disabled = false; closeDl(); }
+  }
+  function openDl() {
+    dlMenu.innerHTML = '';
+    for (const i of visiblePages()) {
+      const b = document.createElement('button');
+      b.setAttribute('role', 'menuitem');
+      b.innerHTML = '<img src="thumbs/' + pad(i + 1) + '.jpg" alt=""><span>บันทึกหน้า ' + (i + 1) + ' เป็นรูป PNG<small>ความละเอียด 1600 × 2071 px</small></span>';
+      b.onclick = () => downloadPng(i, b);
+      dlMenu.appendChild(b);
+    }
+    dlMenu.appendChild(document.createElement('hr'));
+    const p = document.createElement('button');
+    p.setAttribute('role', 'menuitem');
+    p.innerHTML = '<span class="ico">PDF</span><span>ดาวน์โหลดทั้งเล่ม (PDF)<small>19 หน้า · ประมาณ 33 MB</small></span>';
+    p.onclick = () => { const a = document.createElement('a'); a.href = PDF_URL; a.download = PDF_URL; document.body.appendChild(a); a.click(); a.remove(); closeDl(); };
+    dlMenu.appendChild(p);
+    dlMenu.hidden = false;
+    dlBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeDl() { dlMenu.hidden = true; dlBtn.setAttribute('aria-expanded', 'false'); }
+  dlBtn.onclick = e => { e.stopPropagation(); dlMenu.hidden ? openDl() : closeDl(); };
+  document.addEventListener('pointerdown', e => { if (!dlMenu.hidden && !dlMenu.contains(e.target) && !dlBtn.contains(e.target)) closeDl(); });
+
   function toast(t) {
     const h = $('hint'); h.textContent = t; h.style.opacity = 1;
     setTimeout(() => h.style.opacity = 0, 1800);
