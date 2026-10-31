@@ -43,6 +43,7 @@
     display: flex; align-items: center; justify-content: center;
     padding: 8px 56px;
   }
+  #rot { flex: 0 0 auto; position: relative; transition: transform .35s ease; }
   #book { margin: 0 auto; min-width: 0 !important; min-height: 0 !important; max-width: none !important; touch-action: none; }
   #book .stf__item { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
   #book .page { background: #fff; }
@@ -71,6 +72,7 @@
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   }
   .tb:hover, .tb[aria-pressed="true"] { background: var(--accent); }
+  .tb:disabled { opacity: .35; pointer-events: none; }
   .tb svg { width: 18px; height: 18px; }
   #counter { background: var(--bar); border-radius: 19px; height: 38px; display: inline-flex; align-items: center; padding: 0 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
   #counter input { width: 3.2em; background: transparent; border: 0; border-bottom: 1px solid var(--muted); color: #fff; font: inherit; text-align: center; padding: 0; }
@@ -100,7 +102,7 @@
     #stage { padding: 4px 8px; }
     .nav { display: none; }
     header h1 { font-size: 14px; }
-    .tb .lbl, #fsBtn { display: none; }
+    .tb .lbl, #fsBtn, #first, #last { display: none; }
     footer { gap: 4px; }
   }
 </style>
@@ -113,7 +115,7 @@
 
 <main id="stage">
   <div id="loading"><div>กำลังโหลดแคตตาล็อก…<div class="bar"><i id="loadbar"></i></div></div></div>
-  <div id="book"></div>
+  <div id="rot"></div>
   <button class="nav" id="prev" aria-label="หน้าก่อนหน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
   <button class="nav" id="next" aria-label="หน้าถัดไป"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
   <div id="hint">ลากมุมกระดาษเพื่อพลิกหน้า · คลิกสองครั้งเพื่อซูม</div>
@@ -121,9 +123,13 @@
 
 <footer>
   <button class="tb" id="first" title="หน้าแรก"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg></button>
+  <button class="tb" id="stepPrev" title="ย้อนกลับ 1 หน้า" aria-label="ย้อนกลับ 1 หน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
   <span id="counter"><input id="pageInput" inputmode="numeric" aria-label="ไปที่หน้า">&nbsp;/&nbsp;<span id="total">–</span></span>
+  <button class="tb" id="stepNext" title="ถัดไป 1 หน้า" aria-label="ถัดไป 1 หน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
   <button class="tb" id="last" title="หน้าสุดท้าย"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg></button>
   <button class="tb" id="thumbBtn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span class="lbl">ทุกหน้า</span></button>
+  <button class="tb" id="modeBtn"></button>
+  <button class="tb" id="rotBtn" title="หมุนหน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span class="lbl">หมุน</span></button>
   <button class="tb" id="zoomBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg><span class="lbl">ซูม</span></button>
   <button class="tb" id="fsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span class="lbl">เต็มจอ</span></button>
   <button class="tb" id="shareBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span class="lbl">แชร์</span></button>
@@ -145,88 +151,153 @@
   const $ = id => document.getElementById(id);
   document.getElementById('total').textContent = N;
 
-  // Build pages: first and last are hard covers.
-  const book = $('book');
-  for (let i = 1; i <= N; i++) {
-    const d = document.createElement('div');
-    d.className = 'page';
-    const img = new Image();
-    img.alt = 'หน้า ' + i;
-    img.draggable = false;
-    img.decoding = 'async';
-    img.src = pageSrc(i);
-    d.appendChild(img);
-    book.appendChild(d);
-  }
-  // Wait for the first few pages so the opening flip is smooth.
-  let loaded = 0;
-  const imgs = [...book.querySelectorAll('img')];
-  await Promise.all(imgs.slice(0, 4).map(im => im.decode().catch(() => {}).then(() => {
-    $('loadbar').style.width = (++loaded / 4 * 100) + '%';
-  })));
+  const pw = meta.pages[0].w, ph = meta.pages[0].h, ratio = pw / ph;
+  const stage = $('stage'), rot = $('rot'), pageInput = $('pageInput');
+  const store = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch (e) { return null; } };
+  let mode = store('fb-mode') === 'double' ? 'double' : 'single';   // chosen by the viewer, any screen shape
+  let angle = 0;                                                    // 0 / 90 / 180 / 270, clockwise
+  let book = null, pageFlip = null, imgs = [], state = 'read', pending = false;
 
-  const pw = meta.pages[0].w, ph = meta.pages[0].h;
-  // Single-page mode: in "stretch" StPageFlip goes portrait when the block is narrower than
-  // 2 × minWidth, so a huge minWidth (its CSS min-width is overridden in the stylesheet) keeps it one page.
-  const pageFlip = new St.PageFlip(book, {
-    width: pw / 2, height: ph / 2,
-    size: 'stretch',
-    minWidth: 5000, maxWidth: 5000, minHeight: 100, maxHeight: 8000,
-    showCover: false,
-    usePortrait: true,
-    drawShadow: true,
-    maxShadowOpacity: 0.3,
-    mobileScrollSupport: false,
-    showPageCorners: true,
-    flippingTime: 650,
-    swipeDistance: 30
-  });
-
-  // Fit one page inside the stage.
-  const stage = $('stage');
+  // Size the rotation box to one page or one spread; when turned 90/270 it fits the swapped stage.
   function fit() {
     const cs = getComputedStyle(stage);
     const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 18;
-    const w = Math.min(availW, availH * pw / ph);
-    book.style.width = Math.floor(w) + 'px';
-    book.style.height = Math.floor(w * ph / pw) + 'px';
+    const [bw, bh] = angle % 180 ? [availH, availW] : [availW, availH];
+    const r = ratio * (mode === 'double' ? 2 : 1);
+    const w = Math.floor(Math.min(bw, bh * r)), h = Math.floor(w / r);
+    rot.style.width = w + 'px';
+    rot.style.height = h + 'px';
+    rot.style.transform = angle ? 'rotate(' + angle + 'deg)' : '';
+    if (book) book.style.height = h + 'px';
   }
-  fit();
-  pageFlip.loadFromHTML(book.querySelectorAll('.page'));
-  $('loading').remove();
+
+  // (Re)build the book. StPageFlip "stretch" shows one page when the block is narrower than
+  // 2 × minWidth, so minWidth picks the mode (its CSS min-width is overridden in the stylesheet).
+  function build(start) {
+    if (pageFlip) pageFlip.destroy();
+    book = document.createElement('div');
+    book.id = 'book';
+    rot.appendChild(book);
+    const dbl = mode === 'double';
+    for (let i = 1; i <= N; i++) {
+      const d = document.createElement('div');
+      d.className = 'page';
+      if (dbl && (i === 1 || i === N)) d.dataset.density = 'hard';
+      const img = new Image();
+      img.alt = 'หน้า ' + i;
+      img.draggable = false;
+      img.decoding = 'async';
+      img.src = pageSrc(i);
+      d.appendChild(img);
+      book.appendChild(d);
+    }
+    imgs = [...book.querySelectorAll('img')];
+    fit();
+    pageFlip = new St.PageFlip(book, {
+      width: pw / 2, height: ph / 2,
+      size: 'stretch',
+      minWidth: dbl ? 50 : 5000, maxWidth: 5000, minHeight: 50, maxHeight: 8000,
+      showCover: dbl,
+      usePortrait: true,
+      startPage: start,
+      drawShadow: true,
+      maxShadowOpacity: 0.3,
+      mobileScrollSupport: false,
+      showPageCorners: angle === 0,
+      useMouseEvents: angle === 0,   // drag maths assume an unrotated book; rotated books use the swipe handler below
+      flippingTime: 650,
+      swipeDistance: 30
+    });
+    pageFlip.loadFromHTML(book.querySelectorAll('.page'));
+    const ui = pageFlip.getUI();
+    if (ui && ui.onResize) removeEventListener('resize', ui.onResize);  // the library's own unthrottled handler
+    state = 'read';
+    pageFlip.on('changeState', e => { state = e.data; if (state === 'read' && pending) relayout(); });
+    pageFlip.on('flip', sync);
+    book.addEventListener('dblclick', e => {
+      const img = e.target.closest('.page')?.querySelector('img');
+      openZoom(img ? imgs.indexOf(img) + 1 : pageFlip.getCurrentPageIndex() + 1);
+    });
+    sync();
+  }
 
   // Re-layout only when the size really changes, never mid-flip. Mobile browsers fire resize
   // whenever the address bar slides in/out; relayouting then is what made the page jitter.
-  const ui = pageFlip.getUI();
-  if (ui && ui.onResize) removeEventListener('resize', ui.onResize);  // the library's own unthrottled handler
-  let state = 'read', lastW = innerWidth, lastH = innerHeight, pending = false, timer;
+  let lastW = innerWidth, lastH = innerHeight, timer;
   function relayout() {
     if (state !== 'read') { pending = true; return; }
     pending = false; lastW = innerWidth; lastH = innerHeight;
     fit(); pageFlip.update();
   }
-  pageFlip.on('changeState', e => { state = e.data; if (state === 'read' && pending) relayout(); });
   addEventListener('resize', () => {
     const touch = matchMedia('(pointer: coarse)').matches;
     if (innerWidth === lastW && touch && Math.abs(innerHeight - lastH) < 160) return;
     clearTimeout(timer); timer = setTimeout(relayout, 150);
   });
 
-  const pageInput = $('pageInput');
   function sync() {
+    if (!pageFlip) return;
     const idx = pageFlip.getCurrentPageIndex();
-    if (document.activeElement !== pageInput) pageInput.value = idx + 1;
-    $('prev').disabled = idx === 0;
-    $('next').disabled = idx >= N - 1;
+    let label = String(idx + 1), lastVisible = idx;
+    if (pageFlip.getOrientation() === 'landscape' && idx > 0) {
+      const l = idx % 2 === 1 ? idx : idx - 1;   // with a lone cover, spreads are (1,2), (3,4)…
+      lastVisible = Math.min(N - 1, l + 1);
+      label = lastVisible > l ? (l + 1) + '-' + (lastVisible + 1) : String(l + 1);
+    }
+    if (document.activeElement !== pageInput) pageInput.value = label;
+    $('prev').disabled = $('stepPrev').disabled = $('first').disabled = idx === 0;
+    $('next').disabled = $('stepNext').disabled = $('last').disabled = lastVisible >= N - 1;
     $('thumbs').querySelectorAll('button').forEach((b, i) => b.classList.toggle('cur', i === idx));
     history.replaceState(null, '', '#page=' + (idx + 1));
   }
-  pageFlip.on('flip', sync);
+
+  // 1-page / 2-page toggle: the button shows the mode it switches to.
+  const ICON_ONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="18" rx="1.5"/></svg>';
+  const ICON_TWO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-2-9-2v15c4 0 7 .5 9 2 2-1.5 5-2 9-2V4c-4 0-7 .5-9 2z"/><path d="M12 6v15"/></svg>';
+  function modeButton() {
+    const toDouble = mode === 'single';
+    $('modeBtn').innerHTML = (toDouble ? ICON_TWO : ICON_ONE) + '<span class="lbl">' + (toDouble ? 'ดู 2 หน้า' : 'ดู 1 หน้า') + '</span>';
+    $('modeBtn').title = toDouble ? 'แสดงทีละ 2 หน้า' : 'แสดงทีละ 1 หน้า';
+  }
+  $('modeBtn').onclick = () => {
+    mode = mode === 'single' ? 'double' : 'single';
+    store('fb-mode', mode);
+    modeButton();
+    build(pageFlip.getCurrentPageIndex());
+  };
+  modeButton();
+
+  // Rotate 90° clockwise per click (180° = upside down, e.g. showing a customer across the table).
+  $('rotBtn').onclick = () => {
+    angle = (angle + 90) % 360;
+    zoom.querySelector('img').style.transform = angle === 180 ? 'rotate(180deg)' : '';
+    build(pageFlip.getCurrentPageIndex());
+  };
+  // Swipe on a rotated book: map the screen swipe onto the book's own x axis.
+  let sw = null;
+  stage.addEventListener('pointerdown', e => { if (angle && !e.target.closest('button')) sw = { x: e.clientX, y: e.clientY }; });
+  addEventListener('pointerup', e => {
+    if (!sw) return;
+    const dx = e.clientX - sw.x, dy = e.clientY - sw.y, a = angle * Math.PI / 180;
+    sw = null;
+    const lx = dx * Math.cos(a) + dy * Math.sin(a), ly = -dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) > 40 && Math.abs(lx) > Math.abs(ly)) lx < 0 ? pageFlip.flipNext() : pageFlip.flipPrev();
+  });
+
+  // Wait for the first few pages so the opening flip is smooth.
+  let loaded = 0;
+  await Promise.all([1, 2, 3, 4].map(i => {
+    const im = new Image(); im.src = pageSrc(i);
+    return im.decode().catch(() => {}).then(() => { $('loadbar').style.width = (++loaded / 4 * 100) + '%'; });
+  }));
+  const m = location.hash.match(/page=(\d+)/);
+  build(m ? Math.min(N, Math.max(1, +m[1])) - 1 : 0);
+  $('loading').remove();
 
   const go = n => { n = Math.max(1, Math.min(N, n | 0)); pageFlip.flip(n - 1); };
-  $('prev').onclick = () => pageFlip.flipPrev();
-  $('next').onclick = () => pageFlip.flipNext();
+  $('prev').onclick = $('stepPrev').onclick = () => pageFlip.flipPrev();
+  $('next').onclick = $('stepNext').onclick = () => pageFlip.flipNext();
   $('first').onclick = () => go(1);
   $('last').onclick = () => go(N);
   pageInput.addEventListener('focus', () => pageInput.select());
@@ -256,11 +327,6 @@
   function closeZoom() { zoom.classList.remove('open'); }
   zoom.onclick = closeZoom;
   $('zoomBtn').onclick = () => openZoom(pageFlip.getCurrentPageIndex() + 1);
-  book.addEventListener('dblclick', e => {
-    const img = e.target.closest('.page')?.querySelector('img');
-    const n = img ? imgs.indexOf(img) + 1 : pageFlip.getCurrentPageIndex() + 1;
-    openZoom(n);
-  });
 
   // Fullscreen
   $('fsBtn').onclick = () => {
@@ -293,9 +359,6 @@
     if (e.key === 'End') go(N);
   });
 
-  // Deep link: #page=N
-  const m = location.hash.match(/page=(\d+)/);
-  if (m && +m[1] > 1) pageFlip.turnToPage(Math.min(N, +m[1]) - 1);
   sync();
   setTimeout(() => $('hint').style.opacity = 0, 4000);
 })();
