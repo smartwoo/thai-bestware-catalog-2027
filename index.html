@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ไทย เบสท์แวร์ e-Catalogue 2027</title>
+<meta name="description" content="แคตตาล็อกออนไลน์ ภาชนะเมลามีน 100% ตราดอกไม้ – บริษัท ไทย เมลามีนแวร์ อินดัสเทรียล จำกัด">
+<meta property="og:title" content="ไทย เบสท์แวร์ e-Catalogue 2027">
+<meta property="og:description" content="ภาชนะเมลามีน 100% ตราดอกไม้ – เปิดอ่านแบบพลิกหน้า">
+<meta property="og:image" content="pages/001.jpg">
+<link rel="icon" href="thumbs/001.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #2a1620;
+    --bg2: #4a1f33;
+    --accent: #e6197e;
+    --ink: #fff;
+    --muted: rgba(255,255,255,.65);
+    --bar: rgba(20,10,15,.72);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Prompt", system-ui, sans-serif;
+    color: var(--ink);
+    background: radial-gradient(ellipse at 50% 35%, var(--bg2), var(--bg) 70%);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  }
+  header img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: #fff; }
+  header h1 { font-size: 16px; font-weight: 500; margin: 0; line-height: 1.2; }
+  header small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+  #stage {
+    flex: 1; min-height: 0; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 56px;
+  }
+  #book { margin: 0 auto; }
+  #book .page { background: #fff; }
+  #book .page img { width: 100%; height: 100%; display: block; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+  .nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border-radius: 50%; border: 0;
+    background: rgba(255,255,255,.12); color: #fff; cursor: pointer;
+    display: grid; place-items: center; transition: background .2s, opacity .2s;
+  }
+  .nav:hover { background: var(--accent); }
+  .nav:disabled { opacity: .25; pointer-events: none; }
+  .nav svg { width: 22px; height: 22px; }
+  #prev { left: 8px; } #next { right: 8px; }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+  #loading .bar { width: 200px; height: 4px; background: rgba(255,255,255,.15); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  #loading .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+  footer {
+    display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .tb {
+    height: 38px; min-width: 38px; padding: 0 10px; border-radius: 19px; border: 0;
+    background: var(--bar); color: #fff; cursor: pointer; font: inherit; font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .tb:hover, .tb[aria-pressed="true"] { background: var(--accent); }
+  .tb svg { width: 18px; height: 18px; }
+  #counter { background: var(--bar); border-radius: 19px; height: 38px; display: inline-flex; align-items: center; padding: 0 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  #counter input { width: 3.2em; background: transparent; border: 0; border-bottom: 1px solid var(--muted); color: #fff; font: inherit; text-align: center; padding: 0; }
+
+  #thumbs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: rgba(15,6,10,.94); backdrop-filter: blur(8px);
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    display: flex; gap: 10px; overflow-x: auto;
+    transform: translateY(105%); transition: transform .3s ease;
+  }
+  #thumbs.open { transform: none; }
+  #thumbs button { flex: 0 0 auto; border: 2px solid transparent; padding: 0; background: none; cursor: pointer; border-radius: 4px; overflow: hidden; position: relative; }
+  #thumbs button.cur { border-color: var(--accent); }
+  #thumbs img { display: block; height: 120px; width: auto; }
+  #thumbs span { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.55); font-size: 11px; text-align: center; padding: 2px; }
+
+  #zoom {
+    position: fixed; inset: 0; z-index: 30; background: rgba(10,4,8,.96);
+    overflow: auto; display: none; cursor: zoom-out; touch-action: pan-x pan-y pinch-zoom;
+  }
+  #zoom.open { display: block; }
+  #zoom img { display: block; margin: 0 auto; width: min(1600px, 100%); height: auto; }
+  #zoom .close { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; z-index: 31; }
+  #hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--muted); pointer-events: none; transition: opacity .6s; }
+  @media (max-width: 640px) {
+    #stage { padding: 4px 8px; }
+    .nav { display: none; }
+    header h1 { font-size: 14px; }
+    .tb .lbl, #fsBtn { display: none; }
+    footer { gap: 4px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <img src="thumbs/001.jpg" alt="">
+  <h1>ไทย เบสท์แวร์ e-Catalogue 2027<small>ภาชนะเมลามีน 100% · บริษัท ไทย เมลามีนแวร์ อินดัสเทรียล จำกัด</small></h1>
+</header>
+
+<main id="stage">
+  <div id="loading"><div>กำลังโหลดแคตตาล็อก…<div class="bar"><i id="loadbar"></i></div></div></div>
+  <div id="book"></div>
+  <button class="nav" id="prev" aria-label="หน้าก่อนหน้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+  <button class="nav" id="next" aria-label="หน้าถัดไป"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  <div id="hint">ลากมุมกระดาษเพื่อพลิกหน้า · คลิกสองครั้งเพื่อซูม</div>
+</main>
+
+<footer>
+  <button class="tb" id="first" title="หน้าแรก"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg></button>
+  <span id="counter"><input id="pageInput" inputmode="numeric" aria-label="ไปที่หน้า">&nbsp;/&nbsp;<span id="total">–</span></span>
+  <button class="tb" id="last" title="หน้าสุดท้าย"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg></button>
+  <button class="tb" id="thumbBtn" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span class="lbl">ทุกหน้า</span></button>
+  <button class="tb" id="zoomBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg><span class="lbl">ซูม</span></button>
+  <button class="tb" id="fsBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span class="lbl">เต็มจอ</span></button>
+  <button class="tb" id="shareBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg><span class="lbl">แชร์</span></button>
+</footer>
+
+<nav id="thumbs" aria-label="ภาพย่อทุกหน้า"></nav>
+<div id="zoom"><button class="tb close" aria-label="ปิด">✕</button><img alt=""></div>
+
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+<script>
+(async function () {
+  const meta = await fetch('data/meta.json').then(r => r.json());
+  const N = meta.numPages;
+  const pad = i => String(i).padStart(3, '0');
+  const src = i => 'pages/' + pad(i) + '.jpg';
+  const $ = id => document.getElementById(id);
+  document.getElementById('total').textContent = N;
+
+  // Build pages: first and last are hard covers.
+  const book = $('book');
+  for (let i = 1; i <= N; i++) {
+    const d = document.createElement('div');
+    d.className = 'page';
+    if (i === 1 || i === N) d.dataset.density = 'hard';
+    const img = new Image();
+    img.alt = 'หน้า ' + i;
+    img.draggable = false;
+    img.src = src(i);
+    d.appendChild(img);
+    book.appendChild(d);
+  }
+  // Wait for the first few pages so the opening flip is smooth.
+  let loaded = 0;
+  const imgs = [...book.querySelectorAll('img')];
+  await Promise.all(imgs.slice(0, 4).map(im => im.decode().catch(() => {}).then(() => {
+    $('loadbar').style.width = (++loaded / 4 * 100) + '%';
+  })));
+
+  const pw = meta.pages[0].w, ph = meta.pages[0].h;
+  const pageFlip = new St.PageFlip(book, {
+    width: pw / 2, height: ph / 2,
+    size: 'stretch',
+    minWidth: 240, maxWidth: 1000, minHeight: 310, maxHeight: 1300,
+    showCover: true,
+    usePortrait: true,
+    maxShadowOpacity: 0.5,
+    mobileScrollSupport: false,
+    showPageCorners: true,
+    flippingTime: 800,
+    swipeDistance: 30
+  });
+  pageFlip.loadFromHTML(book.querySelectorAll('.page'));
+  $('loading').remove();
+
+  // Fit the book inside the stage (StPageFlip "stretch" fills width; cap height via max-width).
+  const stage = $('stage');
+  function fit() {
+    const cs = getComputedStyle(stage);
+    const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 18;
+    const portrait = availW < availH * (pw / ph) * 1.6 || availW < 640;
+    const spreadRatio = (portrait ? 1 : 2) * pw / ph;
+    const w = Math.min(availW, availH * spreadRatio);
+    book.style.width = Math.floor(w) + 'px';
+    book.style.height = Math.floor(w / spreadRatio) + 'px';
+  }
+  fit();
+  addEventListener('resize', () => { fit(); pageFlip.update(); });
+  pageFlip.update();
+
+  const pageInput = $('pageInput');
+  function sync() {
+    const idx = pageFlip.getCurrentPageIndex();
+    const portrait = pageFlip.getOrientation() === 'portrait';
+    let label = String(idx + 1);
+    if (!portrait && idx > 0 && idx < N - 1) {
+      const l = idx % 2 === 1 ? idx : idx - 1;
+      label = (l + 1) + (l + 2 <= N ? '-' + (l + 2) : '');
+    }
+    if (document.activeElement !== pageInput) pageInput.value = label;
+    $('prev').disabled = idx === 0;
+    const lastVisible = portrait || idx === 0 ? idx : (idx % 2 === 1 ? idx + 1 : idx);
+    $('next').disabled = lastVisible >= N - 1;
+    $('thumbs').querySelectorAll('button').forEach((b, i) => b.classList.toggle('cur', i === idx));
+    history.replaceState(null, '', '#page=' + (idx + 1));
+  }
+  pageFlip.on('flip', sync);
+  pageFlip.on('changeOrientation', () => { fit(); sync(); });
+
+  const go = n => { n = Math.max(1, Math.min(N, n | 0)); pageFlip.flip(n - 1); };
+  $('prev').onclick = () => pageFlip.flipPrev();
+  $('next').onclick = () => pageFlip.flipNext();
+  $('first').onclick = () => go(1);
+  $('last').onclick = () => go(N);
+  pageInput.addEventListener('focus', () => pageInput.select());
+  pageInput.addEventListener('keydown', e => { if (e.key === 'Enter') { go(parseInt(pageInput.value, 10)); pageInput.blur(); } });
+  pageInput.addEventListener('blur', sync);
+
+  // Thumbnails drawer
+  const thumbs = $('thumbs');
+  for (let i = 1; i <= N; i++) {
+    const b = document.createElement('button');
+    b.innerHTML = '<img loading="lazy" src="thumbs/' + pad(i) + '.jpg" alt=""><span>' + i + '</span>';
+    b.onclick = () => { go(i); toggleThumbs(false); };
+    thumbs.appendChild(b);
+  }
+  function toggleThumbs(open) {
+    open = open ?? !thumbs.classList.contains('open');
+    thumbs.classList.toggle('open', open);
+    $('thumbBtn').setAttribute('aria-pressed', open);
+    if (open) thumbs.querySelector('.cur')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  $('thumbBtn').onclick = e => { e.stopPropagation(); toggleThumbs(); };
+  document.addEventListener('click', e => { if (!thumbs.contains(e.target)) toggleThumbs(false); });
+
+  // Zoom view (full-resolution single page, scrollable / pinch-zoomable)
+  const zoom = $('zoom'), zimg = zoom.querySelector('img');
+  function openZoom(n) { zimg.src = src(n); zoom.classList.add('open'); zoom.scrollTop = 0; }
+  function closeZoom() { zoom.classList.remove('open'); }
+  zoom.onclick = closeZoom;
+  $('zoomBtn').onclick = () => openZoom(pageFlip.getCurrentPageIndex() + 1);
+  book.addEventListener('dblclick', e => {
+    const img = e.target.closest('.page')?.querySelector('img');
+    const n = img ? imgs.indexOf(img) + 1 : pageFlip.getCurrentPageIndex() + 1;
+    openZoom(n);
+  });
+
+  // Fullscreen
+  $('fsBtn').onclick = () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+  };
+
+  // Share
+  $('shareBtn').onclick = async () => {
+    const url = location.href.split('#')[0];
+    try {
+      if (navigator.share) await navigator.share({ title: document.title, url });
+      else { await navigator.clipboard.writeText(url); toast('คัดลอกลิงก์แล้ว'); }
+    } catch (e) {}
+  };
+  function toast(t) {
+    const h = $('hint'); h.textContent = t; h.style.opacity = 1;
+    setTimeout(() => h.style.opacity = 0, 1800);
+  }
+
+  // Keyboard
+  addEventListener('keydown', e => {
+    if (e.target === pageInput) return;
+    if (e.key === 'Escape') { closeZoom(); toggleThumbs(false); }
+    if (zoom.classList.contains('open')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') pageFlip.flipNext();
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') pageFlip.flipPrev();
+    if (e.key === 'Home') go(1);
+    if (e.key === 'End') go(N);
+  });
+
+  // Deep link: #page=N
+  const m = location.hash.match(/page=(\d+)/);
+  if (m && +m[1] > 1) pageFlip.turnToPage(Math.min(N, +m[1]) - 1);
+  sync();
+  setTimeout(() => $('hint').style.opacity = 0, 4000);
+})();
+</script>
+</body>
+</html>
