@@ -618,7 +618,8 @@ function Flipbook(host, o) {
   let loaded = 0;
   await Promise.all([1, 2, 3, 4].map(i => {
     const im = new Image(); im.src = pageSrc(i);
-    return im.decode().catch(() => {}).then(() => { $('loadbar').style.width = (++loaded / 4 * 100) + '%'; });
+    // Hidden tabs may never decode; don't let that hold the page.
+    return Promise.race([im.decode().catch(() => {}), new Promise(r => setTimeout(r, 2500))]).then(() => { $('loadbar').style.width = (++loaded / 4 * 100) + '%'; });
   }));
   const m = location.hash.match(/page=(\d+)/);
   build(m ? Math.min(N, Math.max(1, +m[1])) - 1 : 0);
